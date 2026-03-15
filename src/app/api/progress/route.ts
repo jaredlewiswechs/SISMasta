@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
     const subject = searchParams.get("subject");
     const gradingPeriodId = searchParams.get("gradingPeriodId");
 
-    const where: any = { schoolId };
+    const where: any = { student: { schoolId } };
     if (studentId) where.studentId = studentId;
     if (subject) where.subject = subject;
     if (gradingPeriodId) where.gradingPeriodId = gradingPeriodId;
@@ -26,10 +26,10 @@ export async function GET(request: NextRequest) {
     const records = await prisma.progressRecord.findMany({
       where,
       include: {
-        student: { select: { id: true, firstName: true, lastName: true } },
-        teacher: { select: { id: true, firstName: true, lastName: true } },
+        student: { select: { id: true, legalFirstName: true, legalLastName: true } },
+        gradingPeriod: { select: { id: true, name: true } },
       },
-      orderBy: [{ subject: "asc" }, { recordedAt: "desc" }],
+      orderBy: [{ subject: "asc" }, { createdAt: "desc" }],
     });
 
     return NextResponse.json(records);
@@ -50,11 +50,11 @@ export async function POST(request: NextRequest) {
     const userId = (session.user as any).id;
     const body = await request.json();
 
-    const { studentId, subject, grade, masteryLevel, narrative, gradingPeriodId, assignmentName } = body;
+    const { studentId, subject, letterGrade, masteryLevel, narrative, gradingPeriodId, assignmentName, score, maxScore, category, mode } = body;
 
-    if (!studentId || !subject) {
+    if (!studentId || !subject || !gradingPeriodId) {
       return NextResponse.json(
-        { error: "studentId and subject are required" },
+        { error: "studentId, subject, and gradingPeriodId are required" },
         { status: 400 }
       );
     }
@@ -63,17 +63,18 @@ export async function POST(request: NextRequest) {
       data: {
         studentId,
         subject,
-        grade,
+        letterGrade,
         masteryLevel,
         narrative,
         assignmentName,
+        score,
+        maxScore,
+        category,
+        mode,
         gradingPeriodId,
-        teacherId: userId,
-        recordedAt: new Date(),
-        schoolId,
       },
       include: {
-        student: { select: { id: true, firstName: true, lastName: true } },
+        student: { select: { id: true, legalFirstName: true, legalLastName: true } },
       },
     });
 
@@ -81,7 +82,7 @@ export async function POST(request: NextRequest) {
       action: "CREATE",
       entityType: "ProgressRecord",
       entityId: record.id,
-      details: { studentId, subject, grade },
+      details: { studentId, subject, letterGrade },
       userId,
       schoolId,
     });

@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "25");
 
-    const where: any = { schoolId };
+    const where: any = { household: { schoolId } };
     if (householdId) where.householdId = householdId;
     if (status) where.status = status;
 
@@ -29,7 +29,6 @@ export async function GET(request: NextRequest) {
         include: {
           household: { select: { id: true, name: true } },
           payments: true,
-          lineItems: true,
         },
         orderBy: { dueDate: "desc" },
         skip: (page - 1) * limit,
@@ -59,7 +58,7 @@ export async function POST(request: NextRequest) {
     const userId = (session.user as any).id;
     const body = await request.json();
 
-    const { householdId, dueDate, amount, description, lineItems, ...rest } = body;
+    const { householdId, dueDate, amount, description, lineItems, tuitionPlanId, discount, tax } = body;
 
     if (!householdId || !dueDate || !amount) {
       return NextResponse.json(
@@ -69,6 +68,9 @@ export async function POST(request: NextRequest) {
     }
 
     const invoiceNumber = `INV-${Date.now().toString(36).toUpperCase()}`;
+    const discountVal = discount || 0;
+    const taxVal = tax || 0;
+    const totalDue = amount - discountVal + taxVal;
 
     const invoice = await prisma.invoice.create({
       data: {
@@ -76,17 +78,16 @@ export async function POST(request: NextRequest) {
         householdId,
         dueDate: new Date(dueDate),
         amount,
+        discount: discountVal,
+        tax: taxVal,
+        totalDue,
         description,
-        status: "Due",
-        schoolId,
-        ...rest,
-        ...(lineItems && {
-          lineItems: { create: lineItems },
-        }),
+        lineItems: lineItems || undefined,
+        tuitionPlanId,
+        status: "PENDING",
       },
       include: {
         household: { select: { id: true, name: true } },
-        lineItems: true,
       },
     });
 

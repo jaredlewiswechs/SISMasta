@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
     if (required === "true") where.required = true;
     if (active === "true") where.active = true;
 
-    const forms = await prisma.form.findMany({
+    const forms = await prisma.formTemplate.findMany({
       where,
       include: {
         _count: { select: { submissions: true } },
@@ -47,27 +47,27 @@ export async function POST(request: NextRequest) {
     const userId = (session.user as any).id;
     const body = await request.json();
 
-    const { name, description, fields, required: isRequired } = body;
+    const { name, description, fields, required: isRequired, eSignature } = body;
 
     if (!name) {
       return NextResponse.json({ error: "name is required" }, { status: 400 });
     }
 
-    const form = await prisma.form.create({
+    const form = await prisma.formTemplate.create({
       data: {
         name,
         description,
         fields: fields || [],
         required: isRequired || false,
+        eSignature: eSignature || false,
         active: true,
         schoolId,
-        createdById: userId,
       },
     });
 
     await createAuditLog({
       action: "CREATE",
-      entityType: "Form",
+      entityType: "FormTemplate",
       entityId: form.id,
       details: { name, required: isRequired },
       userId,

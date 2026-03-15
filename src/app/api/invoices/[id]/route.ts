@@ -15,14 +15,11 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const schoolId = (session.user as any).schoolId;
-
     const invoice = await prisma.invoice.findFirst({
-      where: { id: params.id, schoolId },
+      where: { id: params.id },
       include: {
         household: true,
         payments: true,
-        lineItems: true,
       },
     });
 
@@ -52,7 +49,7 @@ export async function PUT(
     const body = await request.json();
 
     const existing = await prisma.invoice.findFirst({
-      where: { id: params.id, schoolId },
+      where: { id: params.id },
     });
 
     if (!existing) {
@@ -60,6 +57,7 @@ export async function PUT(
     }
 
     if (body.dueDate) body.dueDate = new Date(body.dueDate);
+    if (body.paidDate) body.paidDate = new Date(body.paidDate);
 
     const invoice = await prisma.invoice.update({
       where: { id: params.id },
@@ -67,7 +65,6 @@ export async function PUT(
       include: {
         household: { select: { id: true, name: true } },
         payments: true,
-        lineItems: true,
       },
     });
 

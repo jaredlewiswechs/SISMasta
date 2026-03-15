@@ -14,25 +14,19 @@ export async function GET(request: NextRequest) {
 
     const schoolId = (session.user as any).schoolId;
     const { searchParams } = new URL(request.url);
-    const householdId = searchParams.get("householdId");
     const studentId = searchParams.get("studentId");
     const type = searchParams.get("type");
-    const status = searchParams.get("status");
 
-    const where: any = { schoolId };
-    if (householdId) where.householdId = householdId;
+    const where: any = { student: { schoolId } };
     if (studentId) where.studentId = studentId;
     if (type) where.type = type;
-    if (status) where.status = status;
 
     const documents = await prisma.document.findMany({
       where,
       include: {
-        household: { select: { id: true, name: true } },
-        student: { select: { id: true, firstName: true, lastName: true } },
-        uploadedBy: { select: { id: true, firstName: true, lastName: true } },
+        student: { select: { id: true, legalFirstName: true, legalLastName: true } },
       },
-      orderBy: { uploadedAt: "desc" },
+      orderBy: { createdAt: "desc" },
     });
 
     return NextResponse.json(documents);
@@ -53,11 +47,11 @@ export async function POST(request: NextRequest) {
     const userId = (session.user as any).id;
     const body = await request.json();
 
-    const { name, type, householdId, studentId, fileUrl, fileSize, mimeType } = body;
+    const { name, type, studentId, fileUrl, fileSize, mimeType, notes } = body;
 
-    if (!name || !type || !fileUrl) {
+    if (!name || !type || !fileUrl || !studentId) {
       return NextResponse.json(
-        { error: "name, type, and fileUrl are required" },
+        { error: "name, type, fileUrl, and studentId are required" },
         { status: 400 }
       );
     }
@@ -66,19 +60,14 @@ export async function POST(request: NextRequest) {
       data: {
         name,
         type,
-        householdId,
         studentId,
         fileUrl,
         fileSize,
         mimeType,
-        status: "Pending Review",
-        uploadedById: userId,
-        uploadedAt: new Date(),
-        schoolId,
+        notes,
       },
       include: {
-        household: { select: { id: true, name: true } },
-        student: { select: { id: true, firstName: true, lastName: true } },
+        student: { select: { id: true, legalFirstName: true, legalLastName: true } },
       },
     });
 
@@ -86,7 +75,7 @@ export async function POST(request: NextRequest) {
       action: "CREATE",
       entityType: "Document",
       entityId: document.id,
-      details: { name, type, householdId, studentId },
+      details: { name, type, studentId },
       userId,
       schoolId,
     });

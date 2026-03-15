@@ -15,10 +15,8 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const schoolId = (session.user as any).schoolId;
-
-    const intervention = await prisma.intervention.findFirst({
-      where: { id: params.id, schoolId },
+    const intervention = await prisma.interventionCase.findFirst({
+      where: { id: params.id },
     });
 
     if (!intervention) {
@@ -26,7 +24,7 @@ export async function GET(
     }
 
     const notes = await prisma.interventionNote.findMany({
-      where: { interventionId: params.id },
+      where: { caseId: params.id },
       include: {
         author: { select: { id: true, firstName: true, lastName: true } },
       },
@@ -54,14 +52,14 @@ export async function POST(
     const userId = (session.user as any).id;
     const body = await request.json();
 
-    const { content, progressRating } = body;
+    const { content, noteType } = body;
 
     if (!content) {
       return NextResponse.json({ error: "content is required" }, { status: 400 });
     }
 
-    const intervention = await prisma.intervention.findFirst({
-      where: { id: params.id, schoolId },
+    const intervention = await prisma.interventionCase.findFirst({
+      where: { id: params.id },
     });
 
     if (!intervention) {
@@ -70,9 +68,9 @@ export async function POST(
 
     const note = await prisma.interventionNote.create({
       data: {
-        interventionId: params.id,
+        caseId: params.id,
         content,
-        progressRating,
+        noteType: noteType || "GENERAL",
         authorId: userId,
       },
       include: {
@@ -84,7 +82,7 @@ export async function POST(
       action: "CREATE",
       entityType: "InterventionNote",
       entityId: note.id,
-      details: { interventionId: params.id },
+      details: { caseId: params.id },
       userId,
       schoolId,
     });

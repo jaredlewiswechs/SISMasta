@@ -20,9 +20,9 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get("startDate");
     const endDate = searchParams.get("endDate");
 
-    const where: any = { schoolId };
+    const where: any = { student: { schoolId } };
     if (date) where.date = new Date(date);
-    if (cohortId) where.student = { cohortId };
+    if (cohortId) where.cohortId = cohortId;
     if (studentId) where.studentId = studentId;
     if (startDate && endDate) {
       where.date = {
@@ -35,10 +35,10 @@ export async function GET(request: NextRequest) {
       where,
       include: {
         student: {
-          select: { id: true, firstName: true, lastName: true, gradeLevel: true, cohortId: true },
+          select: { id: true, legalFirstName: true, legalLastName: true, grade: true, cohortId: true },
         },
       },
-      orderBy: [{ date: "desc" }, { student: { lastName: "asc" } }],
+      orderBy: [{ date: "desc" }, { student: { legalLastName: "asc" } }],
     });
 
     return NextResponse.json(records);
@@ -70,20 +70,19 @@ export async function POST(request: NextRequest) {
 
     const results = await Promise.all(
       records.map(async (record: any) => {
-        const { studentId, date, status, note } = record;
+        const { studentId, date, status, notes, cohortId } = record;
 
         return prisma.attendanceRecord.upsert({
           where: {
             studentId_date: { studentId, date: new Date(date) },
           },
-          update: { status, note, recordedBy: userId },
+          update: { status, notes },
           create: {
             studentId,
             date: new Date(date),
             status,
-            note,
-            schoolId,
-            recordedBy: userId,
+            notes,
+            cohortId,
           },
         });
       })

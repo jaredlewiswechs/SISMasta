@@ -14,16 +14,16 @@ export async function GET(request: NextRequest) {
 
     const schoolId = (session.user as any).schoolId;
     const { searchParams } = new URL(request.url);
-    const gradeLevel = searchParams.get("gradeLevel");
+    const grade = searchParams.get("grade");
     const status = searchParams.get("status");
 
     const where: any = { schoolId };
-    if (gradeLevel) where.gradeLevel = gradeLevel;
+    if (grade) where.grade = grade;
     if (status) where.status = status;
 
     const entries = await prisma.waitlistEntry.findMany({
       where,
-      orderBy: [{ position: "asc" }, { addedAt: "asc" }],
+      orderBy: [{ position: "asc" }, { createdAt: "asc" }],
     });
 
     return NextResponse.json(entries);
@@ -44,32 +44,31 @@ export async function POST(request: NextRequest) {
     const userId = (session.user as any).id;
     const body = await request.json();
 
-    const { studentName, gradeLevel, guardianName, guardianEmail, guardianPhone, notes } = body;
+    const { childName, grade, parentName, email, phone, notes } = body;
 
-    if (!studentName || !gradeLevel || !guardianEmail) {
+    if (!childName || !grade || !email) {
       return NextResponse.json(
-        { error: "studentName, gradeLevel, and guardianEmail are required" },
+        { error: "childName, grade, and email are required" },
         { status: 400 }
       );
     }
 
     // Get next position
     const lastEntry = await prisma.waitlistEntry.findFirst({
-      where: { schoolId, gradeLevel },
+      where: { schoolId, grade },
       orderBy: { position: "desc" },
     });
 
     const entry = await prisma.waitlistEntry.create({
       data: {
-        studentName,
-        gradeLevel,
-        guardianName,
-        guardianEmail,
-        guardianPhone,
+        childName,
+        grade,
+        parentName,
+        email,
+        phone,
         notes,
         position: (lastEntry?.position || 0) + 1,
-        status: "Waiting",
-        addedAt: new Date(),
+        status: "WAITING",
         schoolId,
       },
     });
@@ -78,7 +77,7 @@ export async function POST(request: NextRequest) {
       action: "CREATE",
       entityType: "WaitlistEntry",
       entityId: entry.id,
-      details: { studentName, gradeLevel, position: entry.position },
+      details: { childName, grade, position: entry.position },
       userId,
       schoolId,
     });

@@ -15,13 +15,10 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const schoolId = (session.user as any).schoolId;
-
-    const intervention = await prisma.intervention.findFirst({
-      where: { id: params.id, schoolId },
+    const intervention = await prisma.interventionCase.findFirst({
+      where: { id: params.id },
       include: {
         student: true,
-        assignedTo: { select: { id: true, firstName: true, lastName: true } },
         notes: {
           include: {
             author: { select: { id: true, firstName: true, lastName: true } },
@@ -56,8 +53,8 @@ export async function PUT(
     const userId = (session.user as any).id;
     const body = await request.json();
 
-    const existing = await prisma.intervention.findFirst({
-      where: { id: params.id, schoolId },
+    const existing = await prisma.interventionCase.findFirst({
+      where: { id: params.id },
     });
 
     if (!existing) {
@@ -65,20 +62,20 @@ export async function PUT(
     }
 
     if (body.startDate) body.startDate = new Date(body.startDate);
-    if (body.endDate) body.endDate = new Date(body.endDate);
+    if (body.resolvedDate) body.resolvedDate = new Date(body.resolvedDate);
+    if (body.followUpDate) body.followUpDate = new Date(body.followUpDate);
 
-    const intervention = await prisma.intervention.update({
+    const intervention = await prisma.interventionCase.update({
       where: { id: params.id },
       data: body,
       include: {
-        student: { select: { id: true, firstName: true, lastName: true } },
-        assignedTo: { select: { id: true, firstName: true, lastName: true } },
+        student: { select: { id: true, legalFirstName: true, legalLastName: true } },
       },
     });
 
     await createAuditLog({
       action: "UPDATE",
-      entityType: "Intervention",
+      entityType: "InterventionCase",
       entityId: intervention.id,
       details: { updatedFields: Object.keys(body) },
       userId,

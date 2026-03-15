@@ -1,0 +1,864 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── SCHOOL & CAMPUS ────────────────────────────────────────────────
+
+model School {
+  id               String   @id @default(cuid())
+  name             String
+  address          String?
+  city             String?
+  state            String   @default("TX")
+  zip              String?
+  phone            String?
+  email            String?
+  website          String?
+  academicModel    AcademicModel @default(FULL_TIME)
+  billingFrequency BillingFrequency @default(MONTHLY)
+  gradesServed     String?
+  maxCapacity      Int      @default(50)
+  admissionsStatus AdmissionsStatus @default(OPEN)
+  charterMode      Boolean  @default(false)
+  logoUrl          String?
+  brandColor       String?  @default("#4F46E5")
+  timezone         String   @default("America/Chicago")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  campuses       Campus[]
+  users          User[]
+  students       Student[]
+  households     Household[]
+  cohorts        Cohort[]
+  tuitionPlans   TuitionPlan[]
+  formTemplates  FormTemplate[]
+  announcements  Announcement[]
+  calendarEvents CalendarEvent[]
+  gradingPeriods GradingPeriod[]
+  applications   Application[]
+  waitlistEntries WaitlistEntry[]
+  auditLogs      AuditLog[]
+  scheduleBlocks ScheduleBlock[]
+}
+
+model Campus {
+  id       String @id @default(cuid())
+  name     String
+  address  String?
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─── USERS & ROLES ──────────────────────────────────────────────────
+
+model User {
+  id             String   @id @default(cuid())
+  email          String   @unique
+  passwordHash   String
+  firstName      String
+  lastName       String
+  phone          String?
+  role           UserRole @default(FAMILY)
+  active         Boolean  @default(true)
+  emailVerified  DateTime?
+  avatarUrl      String?
+
+  schoolId String?
+  school   School? @relation(fields: [schoolId], references: [id])
+
+  guardianProfile   Guardian?
+  staffProfile      StaffProfile?
+  sentMessages      Message[]       @relation("SentMessages")
+  receivedMessages  Message[]       @relation("ReceivedMessages")
+  auditLogs         AuditLog[]
+  interventionNotes InterventionNote[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model StaffProfile {
+  id       String @id @default(cuid())
+  userId   String @unique
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title    String?
+  hireDate DateTime?
+  bio      String?
+
+  cohorts Cohort[] @relation("CohortStaff")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─── HOUSEHOLDS & GUARDIANS ─────────────────────────────────────────
+
+model Household {
+  id                String @id @default(cuid())
+  name              String
+  address           String?
+  city              String?
+  state             String?
+  zip               String?
+  billingEmail      String?
+  billingPhone      String?
+  communicationPref CommunicationPref @default(EMAIL)
+  custodyNotes      String?
+
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id])
+
+  guardians Guardian[]
+  students  Student[]
+  invoices  Invoice[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Guardian {
+  id           String  @id @default(cuid())
+  userId       String  @unique
+  user         User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  relationship String  @default("Parent")
+  isPrimary    Boolean @default(false)
+  isPayer      Boolean @default(false)
+
+  householdId String
+  household   Household @relation(fields: [householdId], references: [id])
+
+  emergencyContacts EmergencyContact[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model EmergencyContact {
+  id           String @id @default(cuid())
+  name         String
+  phone        String
+  relationship String
+  priority     Int    @default(1)
+
+  guardianId String
+  guardian   Guardian @relation(fields: [guardianId], references: [id], onDelete: Cascade)
+}
+
+// ─── STUDENTS ───────────────────────────────────────────────────────
+
+model Student {
+  id               String   @id @default(cuid())
+  legalFirstName   String
+  legalLastName    String
+  preferredName    String?
+  dateOfBirth      DateTime
+  gender           String?
+  grade            String?
+  enrollmentStatus EnrollmentStatus @default(INQUIRY)
+  startDate        DateTime?
+  exitDate         DateTime?
+  healthAlerts     String?
+  accommodations   String?
+  tags             String[] @default([])
+  scholarshipFlag  Boolean  @default(false)
+  tefaFlag         Boolean  @default(false)
+  photoUrl         String?
+
+  schoolId      String
+  school        School      @relation(fields: [schoolId], references: [id])
+  householdId   String
+  household     Household   @relation(fields: [householdId], references: [id])
+  cohortId      String?
+  cohort        Cohort?     @relation(fields: [cohortId], references: [id])
+  tuitionPlanId String?
+  tuitionPlan   TuitionPlan? @relation(fields: [tuitionPlanId], references: [id])
+
+  attendanceRecords AttendanceRecord[]
+  documents         Document[]
+  formSubmissions   FormSubmission[]
+  progressRecords   ProgressRecord[]
+  reportCards       ReportCard[]
+  interventionCases InterventionCase[]
+  enrollments       Enrollment[]
+  applications      Application[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─── COHORTS ────────────────────────────────────────────────────────
+
+model Cohort {
+  id          String  @id @default(cuid())
+  name        String
+  description String?
+  grades      String?
+  maxSize     Int     @default(20)
+
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id])
+
+  students          Student[]
+  staff             StaffProfile[] @relation("CohortStaff")
+  scheduleBlocks    ScheduleBlock[]
+  attendanceRecords AttendanceRecord[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─── ADMISSIONS & ENROLLMENT ────────────────────────────────────────
+
+model Application {
+  id              String            @id @default(cuid())
+  status          ApplicationStatus @default(INQUIRY)
+  inquiryDate     DateTime          @default(now())
+  tourRequested   Boolean           @default(false)
+  tourDate        DateTime?
+  tourCompleted   Boolean           @default(false)
+  applicationDate DateTime?
+  reviewDate      DateTime?
+  decisionDate    DateTime?
+  notes           String?
+  source          String?
+
+  studentId String
+  student   Student @relation(fields: [studentId], references: [id])
+  schoolId  String
+  school    School  @relation(fields: [schoolId], references: [id])
+
+  applicationTimestamp DateTime?
+  seatOfferedAt        DateTime?
+  seatAcceptedAt       DateTime?
+  waitlistPosition     Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model WaitlistEntry {
+  id         String         @id @default(cuid())
+  position   Int
+  grade      String
+  childName  String
+  parentName String
+  email      String
+  phone      String?
+  notes      String?
+  status     WaitlistStatus @default(WAITING)
+  offeredAt  DateTime?
+  respondedAt DateTime?
+
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Enrollment {
+  id               String         @id @default(cuid())
+  enrollmentType   EnrollmentType @default(NEW)
+  academicYear     String
+  status           EnrollmentStatus @default(ACTIVE)
+  contractSigned   Boolean        @default(false)
+  handbookAcked    Boolean        @default(false)
+  depositPaid      Boolean        @default(false)
+  enrollmentDate   DateTime       @default(now())
+  withdrawalDate   DateTime?
+  withdrawalReason String?
+
+  studentId String
+  student   Student @relation(fields: [studentId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─── ATTENDANCE ─────────────────────────────────────────────────────
+
+model AttendanceRecord {
+  id              String           @id @default(cuid())
+  date            DateTime
+  status          AttendanceStatus @default(PRESENT)
+  attendanceType  AttendanceType   @default(FULL_DAY)
+  absenceReason   String?
+  notes           String?
+  checkinTime     DateTime?
+  checkoutTime    DateTime?
+  parentSubmitted Boolean          @default(false)
+
+  studentId String
+  student   Student @relation(fields: [studentId], references: [id])
+  cohortId  String?
+  cohort    Cohort? @relation(fields: [cohortId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([studentId, date])
+}
+
+// ─── TUITION & PAYMENTS ─────────────────────────────────────────────
+
+model TuitionPlan {
+  id              String           @id @default(cuid())
+  name            String
+  amount          Float
+  frequency       BillingFrequency @default(MONTHLY)
+  description     String?
+  siblingDiscount Float?           @default(0)
+  active          Boolean          @default(true)
+
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id])
+
+  students Student[]
+  invoices Invoice[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Invoice {
+  id              String        @id @default(cuid())
+  invoiceNumber   String        @unique
+  amount          Float
+  discount        Float         @default(0)
+  tax             Float         @default(0)
+  totalDue        Float
+  status          InvoiceStatus @default(PENDING)
+  dueDate         DateTime
+  paidDate        DateTime?
+  description     String?
+  lineItems       Json?
+
+  expenseCategory ExpenseCategory?
+  tefaEligible    Boolean          @default(false)
+
+  householdId   String
+  household     Household    @relation(fields: [householdId], references: [id])
+  tuitionPlanId String?
+  tuitionPlan   TuitionPlan? @relation(fields: [tuitionPlanId], references: [id])
+
+  payments Payment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Payment {
+  id            String        @id @default(cuid())
+  amount        Float
+  method        PaymentMethod @default(CARD)
+  status        PaymentStatus @default(PENDING)
+  transactionId String?
+  payerType     PayerType     @default(FAMILY)
+  notes         String?
+  receiptUrl    String?
+
+  invoiceId String
+  invoice   Invoice @relation(fields: [invoiceId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─── COMMUNICATION ──────────────────────────────────────────────────
+
+model MessageThread {
+  id      String      @id @default(cuid())
+  subject String
+  type    MessageType @default(DIRECT)
+
+  messages Message[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Message {
+  id      String         @id @default(cuid())
+  content String
+  channel MessageChannel @default(IN_APP)
+  read    Boolean        @default(false)
+  readAt  DateTime?
+
+  threadId    String
+  thread      MessageThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  senderId    String
+  sender      User          @relation("SentMessages", fields: [senderId], references: [id])
+  recipientId String
+  recipient   User          @relation("ReceivedMessages", fields: [recipientId], references: [id])
+
+  createdAt DateTime @default(now())
+}
+
+model Announcement {
+  id          String               @id @default(cuid())
+  title       String
+  content     String
+  audience    AnnouncementAudience @default(ALL)
+  published   Boolean              @default(false)
+  publishedAt DateTime?
+  expiresAt   DateTime?
+
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─── CALENDAR & SCHEDULING ──────────────────────────────────────────
+
+model CalendarEvent {
+  id          String    @id @default(cuid())
+  title       String
+  description String?
+  startDate   DateTime
+  endDate     DateTime?
+  allDay      Boolean   @default(false)
+  eventType   EventType @default(GENERAL)
+  recurring   Boolean   @default(false)
+  recurrence  String?
+  location    String?
+
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ScheduleBlock {
+  id        String            @id @default(cuid())
+  name      String
+  dayOfWeek Int
+  startTime String
+  endTime   String
+  blockType ScheduleBlockType @default(CLASS)
+  room      String?
+
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id])
+  cohortId String?
+  cohort   Cohort? @relation(fields: [cohortId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model GradingPeriod {
+  id        String   @id @default(cuid())
+  name      String
+  startDate DateTime
+  endDate   DateTime
+  active    Boolean  @default(false)
+
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id])
+
+  progressRecords ProgressRecord[]
+  reportCards     ReportCard[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─── PROGRESS / GRADEBOOK ───────────────────────────────────────────
+
+model ProgressRecord {
+  id             String        @id @default(cuid())
+  subject        String
+  category       String?
+  assignmentName String?
+  score          Float?
+  maxScore       Float?
+  letterGrade    String?
+  masteryLevel   MasteryLevel?
+  narrative      String?
+  skillTags      String[]      @default([])
+  mode           GradingMode   @default(TRADITIONAL)
+
+  studentId       String
+  student         Student       @relation(fields: [studentId], references: [id])
+  gradingPeriodId String
+  gradingPeriod   GradingPeriod @relation(fields: [gradingPeriodId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ReportCard {
+  id          String    @id @default(cuid())
+  published   Boolean   @default(false)
+  publishedAt DateTime?
+  summary     String?
+  grades      Json?
+  pdfUrl      String?
+
+  studentId       String
+  student         Student       @relation(fields: [studentId], references: [id])
+  gradingPeriodId String
+  gradingPeriod   GradingPeriod @relation(fields: [gradingPeriodId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─── INTERVENTIONS / STUDENT SUPPORT ────────────────────────────────
+
+model InterventionCase {
+  id             String           @id @default(cuid())
+  type           InterventionType @default(ACADEMIC)
+  status         CaseStatus       @default(OPEN)
+  concern        String
+  plan           String?
+  accommodations String?
+  startDate      DateTime         @default(now())
+  resolvedDate   DateTime?
+  followUpDate   DateTime?
+
+  studentId String
+  student   Student @relation(fields: [studentId], references: [id])
+
+  notes InterventionNote[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model InterventionNote {
+  id       String               @id @default(cuid())
+  content  String
+  noteType InterventionNoteType @default(GENERAL)
+
+  caseId   String
+  case     InterventionCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  authorId String
+  author   User             @relation(fields: [authorId], references: [id])
+
+  createdAt DateTime @default(now())
+}
+
+// ─── FORMS & DOCUMENTS ─────────────────────────────────────────────
+
+model FormTemplate {
+  id          String  @id @default(cuid())
+  name        String
+  description String?
+  fields      Json
+  required    Boolean @default(false)
+  eSignature  Boolean @default(false)
+  active      Boolean @default(true)
+
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id])
+
+  submissions FormSubmission[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model FormSubmission {
+  id           String               @id @default(cuid())
+  data         Json
+  signed       Boolean              @default(false)
+  signedAt     DateTime?
+  signatureUrl String?
+  status       FormSubmissionStatus @default(PENDING)
+
+  templateId String
+  template   FormTemplate @relation(fields: [templateId], references: [id])
+  studentId  String
+  student    Student      @relation(fields: [studentId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Document {
+  id        String       @id @default(cuid())
+  name      String
+  type      DocumentType @default(OTHER)
+  fileUrl   String
+  fileSize  Int?
+  mimeType  String?
+  expiresAt DateTime?
+  verified  Boolean      @default(false)
+  notes     String?
+
+  studentId String
+  student   Student @relation(fields: [studentId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─── AUDIT LOG ──────────────────────────────────────────────────────
+
+model AuditLog {
+  id         String  @id @default(cuid())
+  action     String
+  entityType String
+  entityId   String
+  details    Json?
+  ipAddress  String?
+
+  userId   String?
+  user     User?  @relation(fields: [userId], references: [id])
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([schoolId, createdAt])
+}
+
+// ─── ENUMS ──────────────────────────────────────────────────────────
+
+enum UserRole {
+  SUPER_ADMIN
+  SCHOOL_LEADER
+  TEACHER
+  FAMILY
+  FINANCE_MANAGER
+}
+
+enum AcademicModel {
+  FULL_TIME
+  HYBRID
+  POD
+  ENRICHMENT
+}
+
+enum BillingFrequency {
+  WEEKLY
+  MONTHLY
+  TERM
+  ANNUAL
+}
+
+enum AdmissionsStatus {
+  OPEN
+  WAITLIST_ONLY
+  CLOSED
+}
+
+enum CommunicationPref {
+  EMAIL
+  SMS
+  BOTH
+  IN_APP
+}
+
+enum EnrollmentStatus {
+  INQUIRY
+  APPLICANT
+  ACCEPTED
+  WAITLISTED
+  ACTIVE
+  WITHDRAWN
+  GRADUATED
+  DENIED
+}
+
+enum EnrollmentType {
+  NEW
+  RETURNING
+  TRANSFER
+}
+
+enum ApplicationStatus {
+  INQUIRY
+  TOUR_REQUESTED
+  TOUR_COMPLETED
+  APPLICATION_SUBMITTED
+  UNDER_REVIEW
+  ACCEPTED
+  WAITLISTED
+  DENIED
+  ENROLLED
+  WITHDRAWN
+}
+
+enum WaitlistStatus {
+  WAITING
+  OFFERED
+  ACCEPTED
+  DECLINED
+  EXPIRED
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  TARDY
+  EARLY_PICKUP
+  EXCUSED_ABSENT
+}
+
+enum AttendanceType {
+  FULL_DAY
+  HALF_DAY
+  HYBRID_DAY
+  ENRICHMENT_ONLY
+  OFF_CAMPUS
+}
+
+enum InvoiceStatus {
+  DRAFT
+  PENDING
+  SENT
+  PAID
+  PARTIAL
+  OVERDUE
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentMethod {
+  CARD
+  ACH
+  CHECK
+  CASH
+  TEFA
+  SCHOLARSHIP
+  OTHER
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum PayerType {
+  FAMILY
+  SCHOLARSHIP
+  TEFA
+  SPONSOR
+  OTHER
+}
+
+enum ExpenseCategory {
+  TUITION
+  INSTRUCTIONAL_MATERIALS
+  SERVICES
+  FEES
+  OTHER
+}
+
+enum MessageType {
+  DIRECT
+  COHORT
+  SCHOOLWIDE
+}
+
+enum MessageChannel {
+  IN_APP
+  EMAIL
+  SMS
+}
+
+enum AnnouncementAudience {
+  ALL
+  FAMILIES
+  STAFF
+  COHORT
+}
+
+enum EventType {
+  GENERAL
+  HOLIDAY
+  PROFESSIONAL_DEV
+  PARENT_CONFERENCE
+  TOUR
+  OPEN_HOUSE
+  ENRICHMENT
+}
+
+enum ScheduleBlockType {
+  CLASS
+  RECESS
+  LUNCH
+  ENRICHMENT
+  TUTORING
+  OFFICE_HOURS
+  ASSEMBLY
+  OTHER
+}
+
+enum MasteryLevel {
+  NOT_YET
+  APPROACHING
+  MEETING
+  EXCEEDING
+}
+
+enum GradingMode {
+  TRADITIONAL
+  MASTERY
+  NARRATIVE
+}
+
+enum InterventionType {
+  ACADEMIC
+  BEHAVIORAL
+  ATTENDANCE
+  SOCIAL_EMOTIONAL
+  EXECUTIVE_FUNCTIONING
+  OTHER
+}
+
+enum CaseStatus {
+  OPEN
+  IN_PROGRESS
+  MONITORING
+  RESOLVED
+  CLOSED
+}
+
+enum InterventionNoteType {
+  GENERAL
+  PARENT_CONTACT
+  MEETING
+  PROGRESS_UPDATE
+  FOLLOW_UP
+  REFERRAL
+}
+
+enum FormSubmissionStatus {
+  PENDING
+  SUBMITTED
+  APPROVED
+  REJECTED
+}
+
+enum DocumentType {
+  BIRTH_CERTIFICATE
+  IMMUNIZATION_RECORD
+  HANDBOOK_ACK
+  PHOTO_RELEASE
+  EMERGENCY_CONTACT
+  TUITION_CONTRACT
+  MEDICATION_FORM
+  ACCOMMODATIONS_PLAN
+  TRANSCRIPT
+  IEP
+  OTHER
+}

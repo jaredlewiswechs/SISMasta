@@ -17,11 +17,11 @@ export async function GET(
 
     const schoolId = (session.user as any).schoolId;
     const { searchParams } = new URL(request.url);
-    const householdId = searchParams.get("householdId");
+    const studentId = searchParams.get("studentId");
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "25");
 
-    const form = await prisma.form.findFirst({
+    const form = await prisma.formTemplate.findFirst({
       where: { id: params.id, schoolId },
     });
 
@@ -29,17 +29,16 @@ export async function GET(
       return NextResponse.json({ error: "Form not found" }, { status: 404 });
     }
 
-    const where: any = { formId: params.id };
-    if (householdId) where.householdId = householdId;
+    const where: any = { templateId: params.id };
+    if (studentId) where.studentId = studentId;
 
     const [submissions, total] = await Promise.all([
       prisma.formSubmission.findMany({
         where,
         include: {
-          household: { select: { id: true, name: true } },
-          submittedBy: { select: { id: true, firstName: true, lastName: true } },
+          student: { select: { id: true, legalFirstName: true, legalLastName: true } },
         },
-        orderBy: { submittedAt: "desc" },
+        orderBy: { createdAt: "desc" },
         skip: (page - 1) * limit,
         take: limit,
       }),
@@ -70,9 +69,9 @@ export async function POST(
     const userId = (session.user as any).id;
     const body = await request.json();
 
-    const { householdId, data: formData, signature } = body;
+    const { studentId, data: formData, signatureUrl } = body;
 
-    const form = await prisma.form.findFirst({
+    const form = await prisma.formTemplate.findFirst({
       where: { id: params.id, schoolId },
     });
 
@@ -80,22 +79,21 @@ export async function POST(
       return NextResponse.json({ error: "Form not found" }, { status: 404 });
     }
 
-    if (!householdId) {
-      return NextResponse.json({ error: "householdId is required" }, { status: 400 });
+    if (!studentId) {
+      return NextResponse.json({ error: "studentId is required" }, { status: 400 });
     }
 
     const submission = await prisma.formSubmission.create({
       data: {
-        formId: params.id,
-        householdId,
+        templateId: params.id,
+        studentId,
         data: formData || {},
-        signature,
-        submittedById: userId,
-        submittedAt: new Date(),
-        status: "Submitted",
+        signed: !!signatureUrl,
+        signatureUrl,
+        status: "SUBMITTED",
       },
       include: {
-        household: { select: { id: true, name: true } },
+        student: { select: { id: true, legalFirstName: true, legalLastName: true } },
       },
     });
 
@@ -103,7 +101,7 @@ export async function POST(
       action: "CREATE",
       entityType: "FormSubmission",
       entityId: submission.id,
-      details: { formId: params.id, formName: form.name, householdId },
+      details: { formId: params.id, formName: form.name, studentId },
       userId,
       schoolId,
     });

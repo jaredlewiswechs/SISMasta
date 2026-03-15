@@ -15,18 +15,19 @@ export async function GET(request: NextRequest) {
     const schoolId = (session.user as any).schoolId;
     const { searchParams } = new URL(request.url);
     const status = searchParams.get("status");
-    const gradeLevel = searchParams.get("gradeLevel");
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "25");
 
     const where: any = { schoolId };
     if (status) where.status = status;
-    if (gradeLevel) where.gradeLevel = gradeLevel;
 
     const [applications, total] = await Promise.all([
       prisma.application.findMany({
         where,
-        orderBy: { submittedAt: "desc" },
+        include: {
+          student: { select: { id: true, legalFirstName: true, legalLastName: true, grade: true } },
+        },
+        orderBy: { createdAt: "desc" },
         skip: (page - 1) * limit,
         take: limit,
       }),
@@ -54,31 +55,25 @@ export async function POST(request: NextRequest) {
     const userId = (session.user as any).id;
     const body = await request.json();
 
-    const {
-      studentFirstName, studentLastName, dateOfBirth, gradeLevel,
-      guardianName, guardianEmail, guardianPhone, ...rest
-    } = body;
+    const { studentId, notes, source } = body;
 
-    if (!studentFirstName || !studentLastName || !gradeLevel || !guardianEmail) {
+    if (!studentId) {
       return NextResponse.json(
-        { error: "studentFirstName, studentLastName, gradeLevel, and guardianEmail are required" },
+        { error: "studentId is required" },
         { status: 400 }
       );
     }
 
     const application = await prisma.application.create({
       data: {
-        studentFirstName,
-        studentLastName,
-        dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : undefined,
-        gradeLevel,
-        guardianName,
-        guardianEmail,
-        guardianPhone,
-        status: "Submitted",
-        submittedAt: new Date(),
+        studentId,
         schoolId,
-        ...rest,
+        status: "INQUIRY",
+        notes,
+        source,
+      },
+      include: {
+        student: { select: { id: true, legalFirstName: true, legalLastName: true } },
       },
     });
 
@@ -86,7 +81,7 @@ export async function POST(request: NextRequest) {
       action: "CREATE",
       entityType: "Application",
       entityId: application.id,
-      details: { studentName: `${studentFirstName} ${studentLastName}`, gradeLevel },
+      details: { studentId },
       userId,
       schoolId,
     });

@@ -112,14 +112,14 @@ export async function DELETE(
 
     await prisma.student.update({
       where: { id: params.id },
-      data: { status: "Withdrawn" },
+      data: { enrollmentStatus: "WITHDRAWN" },
     });
 
     await createAuditLog({
       action: "DELETE",
       entityType: "Student",
       entityId: params.id,
-      details: { name: `${existing.firstName} ${existing.lastName}` },
+      details: { name: `${existing.legalFirstName} ${existing.legalLastName}` },
       userId,
       schoolId,
     });

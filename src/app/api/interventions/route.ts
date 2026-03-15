@@ -16,28 +16,27 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const studentId = searchParams.get("studentId");
     const status = searchParams.get("status");
-    const tier = searchParams.get("tier");
+    const type = searchParams.get("type");
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "25");
 
-    const where: any = { schoolId };
+    const where: any = { student: { schoolId } };
     if (studentId) where.studentId = studentId;
     if (status) where.status = status;
-    if (tier) where.tier = tier;
+    if (type) where.type = type;
 
     const [interventions, total] = await Promise.all([
-      prisma.intervention.findMany({
+      prisma.interventionCase.findMany({
         where,
         include: {
-          student: { select: { id: true, firstName: true, lastName: true } },
-          assignedTo: { select: { id: true, firstName: true, lastName: true } },
+          student: { select: { id: true, legalFirstName: true, legalLastName: true } },
           notes: { orderBy: { createdAt: "desc" }, take: 3 },
         },
         orderBy: { createdAt: "desc" },
         skip: (page - 1) * limit,
         take: limit,
       }),
-      prisma.intervention.count({ where }),
+      prisma.interventionCase.count({ where }),
     ]);
 
     return NextResponse.json({
@@ -61,39 +60,35 @@ export async function POST(request: NextRequest) {
     const userId = (session.user as any).id;
     const body = await request.json();
 
-    const { studentId, type, tier, description, goal, assignedToId, ...rest } = body;
+    const { studentId, type, concern, plan, accommodations } = body;
 
-    if (!studentId || !type || !description) {
+    if (!studentId || !type || !concern) {
       return NextResponse.json(
-        { error: "studentId, type, and description are required" },
+        { error: "studentId, type, and concern are required" },
         { status: 400 }
       );
     }
 
-    const intervention = await prisma.intervention.create({
+    const intervention = await prisma.interventionCase.create({
       data: {
         studentId,
         type,
-        tier: tier || "Tier1",
-        description,
-        goal,
-        assignedToId: assignedToId || userId,
-        status: "Active",
+        concern,
+        plan,
+        accommodations,
+        status: "OPEN",
         startDate: new Date(),
-        schoolId,
-        ...rest,
       },
       include: {
-        student: { select: { id: true, firstName: true, lastName: true } },
-        assignedTo: { select: { id: true, firstName: true, lastName: true } },
+        student: { select: { id: true, legalFirstName: true, legalLastName: true } },
       },
     });
 
     await createAuditLog({
       action: "CREATE",
-      entityType: "Intervention",
+      entityType: "InterventionCase",
       entityId: intervention.id,
-      details: { studentId, type, tier },
+      details: { studentId, type },
       userId,
       schoolId,
     });

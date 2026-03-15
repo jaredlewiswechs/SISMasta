@@ -19,13 +19,12 @@ export async function GET(request: NextRequest) {
 
     const where: any = { schoolId };
     if (cohortId) where.cohortId = cohortId;
-    if (dayOfWeek) where.dayOfWeek = dayOfWeek;
+    if (dayOfWeek) where.dayOfWeek = parseInt(dayOfWeek);
 
     const scheduleBlocks = await prisma.scheduleBlock.findMany({
       where,
       include: {
         cohort: { select: { id: true, name: true } },
-        teacher: { select: { id: true, firstName: true, lastName: true } },
       },
       orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }],
     });
@@ -48,11 +47,11 @@ export async function POST(request: NextRequest) {
     const userId = (session.user as any).id;
     const body = await request.json();
 
-    const { cohortId, subject, dayOfWeek, startTime, endTime, teacherId, location } = body;
+    const { cohortId, name, dayOfWeek, startTime, endTime, blockType, room } = body;
 
-    if (!cohortId || !subject || !dayOfWeek || !startTime || !endTime) {
+    if (!name || dayOfWeek === undefined || !startTime || !endTime) {
       return NextResponse.json(
-        { error: "cohortId, subject, dayOfWeek, startTime, and endTime are required" },
+        { error: "name, dayOfWeek, startTime, and endTime are required" },
         { status: 400 }
       );
     }
@@ -60,17 +59,16 @@ export async function POST(request: NextRequest) {
     const block = await prisma.scheduleBlock.create({
       data: {
         cohortId,
-        subject,
+        name,
         dayOfWeek,
         startTime,
         endTime,
-        teacherId,
-        location,
+        blockType: blockType || "CLASS",
+        room,
         schoolId,
       },
       include: {
         cohort: { select: { id: true, name: true } },
-        teacher: { select: { id: true, firstName: true, lastName: true } },
       },
     });
 
@@ -78,7 +76,7 @@ export async function POST(request: NextRequest) {
       action: "CREATE",
       entityType: "ScheduleBlock",
       entityId: block.id,
-      details: { cohortId, subject, dayOfWeek },
+      details: { cohortId, name, dayOfWeek },
       userId,
       schoolId,
     });

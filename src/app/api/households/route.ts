@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
     if (search) {
       where.OR = [
         { name: { contains: search, mode: "insensitive" } },
-        { primaryEmail: { contains: search, mode: "insensitive" } },
+        { billingEmail: { contains: search, mode: "insensitive" } },
       ];
     }
 
@@ -30,8 +30,12 @@ export async function GET(request: NextRequest) {
       prisma.household.findMany({
         where,
         include: {
-          students: { select: { id: true, firstName: true, lastName: true, gradeLevel: true } },
-          guardians: { select: { id: true, firstName: true, lastName: true, relationship: true } },
+          students: { select: { id: true, legalFirstName: true, legalLastName: true, grade: true } },
+          guardians: {
+            include: {
+              user: { select: { id: true, firstName: true, lastName: true } },
+            },
+          },
         },
         orderBy: { name: "asc" },
         skip: (page - 1) * limit,
@@ -61,11 +65,11 @@ export async function POST(request: NextRequest) {
     const userId = (session.user as any).id;
     const body = await request.json();
 
-    const { name, primaryEmail, primaryPhone, address, guardians, ...rest } = body;
+    const { name, billingEmail, billingPhone, address, ...rest } = body;
 
-    if (!name || !primaryEmail) {
+    if (!name) {
       return NextResponse.json(
-        { error: "name and primaryEmail are required" },
+        { error: "name is required" },
         { status: 400 }
       );
     }
@@ -73,16 +77,11 @@ export async function POST(request: NextRequest) {
     const household = await prisma.household.create({
       data: {
         name,
-        primaryEmail,
-        primaryPhone,
+        billingEmail,
+        billingPhone,
         address,
         schoolId,
         ...rest,
-        ...(guardians && {
-          guardians: {
-            create: guardians,
-          },
-        }),
       },
       include: {
         students: true,
@@ -94,7 +93,7 @@ export async function POST(request: NextRequest) {
       action: "CREATE",
       entityType: "Household",
       entityId: household.id,
-      details: { name, primaryEmail },
+      details: { name, billingEmail },
       userId,
       schoolId,
     });

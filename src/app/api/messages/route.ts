@@ -12,7 +12,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const schoolId = (session.user as any).schoolId;
     const userId = (session.user as any).id;
     const { searchParams } = new URL(request.url);
     const threadId = searchParams.get("threadId");
@@ -20,12 +19,11 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "25");
 
-    const where: any = { schoolId };
-    if (threadId) where.threadId = threadId;
-    if (unreadOnly) where.read = false;
-
-    // Return threads or messages depending on query
+    // Return messages for a specific thread
     if (threadId) {
+      const where: any = { threadId };
+      if (unreadOnly) where.read = false;
+
       const messages = await prisma.message.findMany({
         where,
         include: {
@@ -43,10 +41,17 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(messages);
     }
 
+    // Return threads where user is sender or recipient
     const threads = await prisma.messageThread.findMany({
       where: {
-        schoolId,
-        participants: { some: { userId } },
+        messages: {
+          some: {
+            OR: [
+              { senderId: userId },
+              { recipientId: userId },
+            ],
+          },
+        },
       },
       include: {
         messages: {
@@ -54,11 +59,6 @@ export async function GET(request: NextRequest) {
           take: 1,
           include: {
             sender: { select: { id: true, firstName: true, lastName: true } },
-          },
-        },
-        participants: {
-          include: {
-            user: { select: { id: true, firstName: true, lastName: true, role: true } },
           },
         },
       },
@@ -105,10 +105,6 @@ export async function POST(request: NextRequest) {
       const thread = await prisma.messageThread.create({
         data: {
           subject,
-          schoolId,
-          participants: {
-            create: [{ userId }, { userId: recipientId }],
-          },
         },
       });
       targetThreadId = thread.id;
@@ -120,7 +116,6 @@ export async function POST(request: NextRequest) {
         senderId: userId,
         recipientId,
         content,
-        schoolId,
       },
       include: {
         sender: { select: { id: true, firstName: true, lastName: true } },

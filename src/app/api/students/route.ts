@@ -22,13 +22,14 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get("limit") || "25");
 
     const where: any = { schoolId };
-    if (status) where.status = status;
-    if (grade) where.gradeLevel = grade;
+    if (status) where.enrollmentStatus = status;
+    if (grade) where.grade = grade;
     if (cohortId) where.cohortId = cohortId;
     if (search) {
       where.OR = [
-        { firstName: { contains: search, mode: "insensitive" } },
-        { lastName: { contains: search, mode: "insensitive" } },
+        { legalFirstName: { contains: search, mode: "insensitive" } },
+        { legalLastName: { contains: search, mode: "insensitive" } },
+        { preferredName: { contains: search, mode: "insensitive" } },
       ];
     }
 
@@ -39,7 +40,7 @@ export async function GET(request: NextRequest) {
           household: { select: { id: true, name: true } },
           cohort: { select: { id: true, name: true } },
         },
-        orderBy: { lastName: "asc" },
+        orderBy: { legalLastName: "asc" },
         skip: (page - 1) * limit,
         take: limit,
       }),
@@ -67,25 +68,25 @@ export async function POST(request: NextRequest) {
     const userId = (session.user as any).id;
     const body = await request.json();
 
-    const { firstName, lastName, dateOfBirth, gradeLevel, householdId, cohortId, ...rest } = body;
+    const { legalFirstName, legalLastName, dateOfBirth, grade, householdId, cohortId, ...rest } = body;
 
-    if (!firstName || !lastName || !dateOfBirth || !gradeLevel || !householdId) {
+    if (!legalFirstName || !legalLastName || !dateOfBirth || !householdId) {
       return NextResponse.json(
-        { error: "firstName, lastName, dateOfBirth, gradeLevel, and householdId are required" },
+        { error: "legalFirstName, legalLastName, dateOfBirth, and householdId are required" },
         { status: 400 }
       );
     }
 
     const student = await prisma.student.create({
       data: {
-        firstName,
-        lastName,
+        legalFirstName,
+        legalLastName,
         dateOfBirth: new Date(dateOfBirth),
-        gradeLevel,
+        grade,
         householdId,
         cohortId,
         schoolId,
-        status: "Active",
+        enrollmentStatus: "ACTIVE",
         ...rest,
       },
       include: {
@@ -98,7 +99,7 @@ export async function POST(request: NextRequest) {
       action: "CREATE",
       entityType: "Student",
       entityId: student.id,
-      details: { firstName, lastName, gradeLevel },
+      details: { legalFirstName, legalLastName, grade },
       userId,
       schoolId,
     });

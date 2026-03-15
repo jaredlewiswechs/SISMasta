@@ -12,14 +12,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const schoolId = (session.user as any).schoolId;
     const { searchParams } = new URL(request.url);
     const invoiceId = searchParams.get("invoiceId");
     const householdId = searchParams.get("householdId");
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "25");
 
-    const where: any = { schoolId };
+    const where: any = {};
     if (invoiceId) where.invoiceId = invoiceId;
     if (householdId) where.invoice = { householdId };
 
@@ -29,7 +28,7 @@ export async function GET(request: NextRequest) {
         include: {
           invoice: { select: { id: true, invoiceNumber: true, householdId: true } },
         },
-        orderBy: { paymentDate: "desc" },
+        orderBy: { createdAt: "desc" },
         skip: (page - 1) * limit,
         take: limit,
       }),
@@ -57,7 +56,7 @@ export async function POST(request: NextRequest) {
     const userId = (session.user as any).id;
     const body = await request.json();
 
-    const { invoiceId, amount, method, reference, ...rest } = body;
+    const { invoiceId, amount, method, transactionId, notes, payerType } = body;
 
     if (!invoiceId || !amount || !method) {
       return NextResponse.json(
@@ -67,7 +66,7 @@ export async function POST(request: NextRequest) {
     }
 
     const invoice = await prisma.invoice.findFirst({
-      where: { id: invoiceId, schoolId },
+      where: { id: invoiceId, household: { schoolId } },
     });
 
     if (!invoice) {
@@ -79,10 +78,10 @@ export async function POST(request: NextRequest) {
         invoiceId,
         amount,
         method,
-        reference,
-        paymentDate: new Date(),
-        schoolId,
-        ...rest,
+        transactionId,
+        notes,
+        payerType,
+        status: "COMPLETED",
       },
       include: {
         invoice: { select: { id: true, invoiceNumber: true } },
@@ -91,16 +90,16 @@ export async function POST(request: NextRequest) {
 
     // Update invoice status based on payments
     const totalPaid = await prisma.payment.aggregate({
-      where: { invoiceId },
+      where: { invoiceId, status: "COMPLETED" },
       _sum: { amount: true },
     });
 
     const paidAmount = totalPaid._sum.amount || 0;
-    const newStatus = paidAmount >= invoice.amount ? "Paid" : "Partial";
+    const newStatus = paidAmount >= invoice.totalDue ? "PAID" : "PARTIAL";
 
     await prisma.invoice.update({
       where: { id: invoiceId },
-      data: { status: newStatus, paidAmount },
+      data: { status: newStatus, paidDate: paidAmount >= invoice.totalDue ? new Date() : undefined },
     });
 
     await createAuditLog({

@@ -16,14 +16,14 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const startDate = searchParams.get("startDate");
     const endDate = searchParams.get("endDate");
-    const type = searchParams.get("type");
+    const eventType = searchParams.get("eventType");
 
     const where: any = { schoolId };
     if (startDate && endDate) {
       where.startDate = { lte: new Date(endDate) };
       where.endDate = { gte: new Date(startDate) };
     }
-    if (type) where.type = type;
+    if (eventType) where.eventType = eventType;
 
     const events = await prisma.calendarEvent.findMany({
       where,
@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
     const userId = (session.user as any).id;
     const body = await request.json();
 
-    const { title, description, startDate, endDate, type, allDay, location } = body;
+    const { title, description, startDate, endDate, eventType, allDay, location } = body;
 
     if (!title || !startDate) {
       return NextResponse.json(
@@ -63,10 +63,9 @@ export async function POST(request: NextRequest) {
         description,
         startDate: new Date(startDate),
         endDate: endDate ? new Date(endDate) : new Date(startDate),
-        type: type || "event",
+        eventType: eventType || "GENERAL",
         allDay: allDay || false,
         location,
-        createdById: userId,
         schoolId,
       },
     });
@@ -75,7 +74,7 @@ export async function POST(request: NextRequest) {
       action: "CREATE",
       entityType: "CalendarEvent",
       entityId: event.id,
-      details: { title, startDate, type },
+      details: { title, startDate, eventType },
       userId,
       schoolId,
     });

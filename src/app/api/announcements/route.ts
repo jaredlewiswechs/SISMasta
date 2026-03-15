@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
 
     const where: any = { schoolId };
     if (active === "true") {
-      where.publishedAt = { lte: new Date() };
+      where.published = true;
       where.OR = [
         { expiresAt: null },
         { expiresAt: { gte: new Date() } },
@@ -30,10 +30,7 @@ export async function GET(request: NextRequest) {
     const [announcements, total] = await Promise.all([
       prisma.announcement.findMany({
         where,
-        include: {
-          author: { select: { id: true, firstName: true, lastName: true } },
-        },
-        orderBy: { publishedAt: "desc" },
+        orderBy: { createdAt: "desc" },
         skip: (page - 1) * limit,
         take: limit,
       }),
@@ -61,7 +58,7 @@ export async function POST(request: NextRequest) {
     const userId = (session.user as any).id;
     const body = await request.json();
 
-    const { title, content, priority, audience, expiresAt } = body;
+    const { title, content, audience, expiresAt } = body;
 
     if (!title || !content) {
       return NextResponse.json(
@@ -74,15 +71,11 @@ export async function POST(request: NextRequest) {
       data: {
         title,
         content,
-        priority: priority || "normal",
-        audience: audience || "all",
+        audience: audience || "ALL",
+        published: true,
         publishedAt: new Date(),
         expiresAt: expiresAt ? new Date(expiresAt) : null,
-        authorId: userId,
         schoolId,
-      },
-      include: {
-        author: { select: { id: true, firstName: true, lastName: true } },
       },
     });
 

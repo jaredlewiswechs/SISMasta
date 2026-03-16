@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
+import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 
 export async function POST(request: Request) {
@@ -21,23 +22,11 @@ export async function POST(request: Request) {
       );
     }
 
-    // Check if email already exists
-    const existingUser = await prisma.user.findUnique({
-      where: { email },
-    });
-
-    if (existingUser) {
-      return NextResponse.json(
-        { error: "An account with this email already exists." },
-        { status: 409 }
-      );
-    }
-
     // Hash password
     const passwordHash = await bcrypt.hash(password, 12);
 
     // Create school and user in a transaction
-    const result = await prisma.$transaction(async (tx: any) => {
+    const result = await prisma.$transaction(async (tx) => {
       const school = await tx.school.create({
         data: {
           name: schoolName,
@@ -68,8 +57,29 @@ export async function POST(request: Request) {
     );
   } catch (error) {
     console.error("Registration error:", error);
+
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      if (error.code === "P2002") {
+        return NextResponse.json(
+          { error: "An account with this email already exists." },
+          { status: 409 }
+        );
+      }
+      return NextResponse.json(
+        { error: "A database error occurred. Please try again." },
+        { status: 500 }
+      );
+    }
+
+    if (error instanceof Prisma.PrismaClientInitializationError) {
+      return NextResponse.json(
+        { error: "Unable to connect to the database. Please try again later." },
+        { status: 503 }
+      );
+    }
+
     return NextResponse.json(
-      { error: "An unexpected error occurred." },
+      { error: "An unexpected error occurred. Please try again." },
       { status: 500 }
     );
   }
